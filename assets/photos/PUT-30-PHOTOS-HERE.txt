@@ -1,0 +1,2 @@
+Add your photos to this folder and name them 01.jpg, 02.jpg, 03.jpg ... 30.jpg.
+Then follow the short replacement step in README.md.
