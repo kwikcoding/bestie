@@ -5,15 +5,11 @@ const labels = [
   "Main-character energy",
   "Just us being us",
 ];
-
-// const memories = Array.from({ length: 30 }, (_, i) => ({ id: i + 1, src: `https://picsum.photos/seed/bestie-memory-${i + 1}/900/1100`, label: labels[i % labels.length] }));
-
 const memories = Array.from({ length: 30 }, (_, i) => ({
   id: i + 1,
   src: `assets/photos/${String(i + 1).padStart(2, "0")}.jpeg`,
   label: labels[i % labels.length],
 }));
-
 const reasons = [
   ["01", "You make ordinary days feel like stories worth remembering."],
   ["02", "You listen to every tiny detail—and somehow remember them all."],
@@ -44,9 +40,10 @@ const lightbox = document.querySelector("#lightbox");
 const lightboxImage = document.querySelector("#lightbox-image");
 const lightboxCaption = document.querySelector("#lightbox-caption");
 let initialized = false,
-  musicOn = false,
-  audioContext = null,
-  musicTimer = null;
+  musicOn = false;
+const birthdayMusic = new Audio("assets/music/birthday-song.mp3");
+birthdayMusic.loop = true;
+birthdayMusic.volume = 0.6;
 
 document.querySelector("#hero-photo").src = memories[0].src;
 reel.innerHTML = memories
@@ -186,9 +183,70 @@ function openSurprise() {
     ScrollTrigger.refresh();
   });
 }
-document
-  .querySelectorAll("[data-open-surprise]")
-  .forEach((button) => button.addEventListener("click", openSurprise));
+
+// Birthday unlock time: change only this date. The +05:30 offset locks it to IST.
+const birthdayTime = new Date("2026-08-20T00:00:00+05:30").getTime();
+const openButtons = document.querySelectorAll("[data-open-surprise]");
+const openTextButton = document.querySelector(
+  "button:not(.gift-box)[data-open-surprise]",
+);
+let surpriseUnlocked = false;
+let countdownTimer = null;
+
+// Create the countdown automatically, so index.html does not need editing.
+const countdownWrap = document.createElement("div");
+countdownWrap.className = "mt-6 text-center";
+countdownWrap.innerHTML = `
+  <p id="countdown-status" class="text-sm font-medium text-pink-200">Your surprise unlocks at midnight 🎂</p>
+  <div id="birthday-countdown" class="mt-3 font-mono text-xl font-bold tracking-wider text-white sm:text-2xl" aria-live="polite">Loading countdown...</div>
+`;
+openTextButton.insertAdjacentElement("afterend", countdownWrap);
+
+const countdownDisplay = document.querySelector("#birthday-countdown");
+const countdownStatus = document.querySelector("#countdown-status");
+
+function lockSurprise() {
+  openButtons.forEach((button) => {
+    button.disabled = true;
+    button.style.opacity = ".45";
+    button.style.cursor = "not-allowed";
+  });
+  openTextButton.textContent = "Surprise locked 🔒";
+}
+
+function unlockSurprise() {
+  if (surpriseUnlocked) return;
+  surpriseUnlocked = true;
+  if (countdownTimer) clearInterval(countdownTimer);
+  openButtons.forEach((button) => {
+    button.disabled = false;
+    button.style.opacity = "1";
+    button.style.cursor = "pointer";
+    button.addEventListener("click", openSurprise);
+  });
+  openTextButton.textContent = "Open your surprise ✨";
+  countdownStatus.textContent = "It's your birthday! 🎉";
+  countdownDisplay.textContent = "The surprise is ready ✨";
+  burstConfetti();
+}
+
+function updateBirthdayCountdown() {
+  const remaining = birthdayTime - Date.now();
+  if (remaining <= 0) {
+    unlockSurprise();
+    return;
+  }
+  const days = Math.floor(remaining / 86400000);
+  const hours = Math.floor((remaining % 86400000) / 3600000);
+  const minutes = Math.floor((remaining % 3600000) / 60000);
+  const seconds = Math.floor((remaining % 60000) / 1000);
+  countdownDisplay.textContent = `${String(days).padStart(2, "0")}d : ${String(hours).padStart(2, "0")}h : ${String(minutes).padStart(2, "0")}m : ${String(seconds).padStart(2, "0")}s`;
+}
+
+lockSurprise();
+updateBirthdayCountdown();
+if (!surpriseUnlocked)
+  countdownTimer = setInterval(updateBirthdayCountdown, 1000);
 
 reel.addEventListener("click", (event) => {
   const button = event.target.closest("[data-memory]");
@@ -228,47 +286,25 @@ envelope.addEventListener("click", () => {
 });
 document.querySelector("#wish-button").addEventListener("click", burstConfetti);
 
-function playNote(frequency, when) {
-  if (!audioContext) return;
-  const oscillator = audioContext.createOscillator(),
-    gain = audioContext.createGain();
-  oscillator.type = "sine";
-  oscillator.frequency.value = frequency;
-  gain.gain.setValueAtTime(0, when);
-  gain.gain.linearRampToValueAtTime(0.055, when + 0.03);
-  gain.gain.exponentialRampToValueAtTime(0.001, when + 1.1);
-  oscillator.connect(gain).connect(audioContext.destination);
-  oscillator.start(when);
-  oscillator.stop(when + 1.15);
-}
-function melody() {
-  const start = audioContext.currentTime;
-  [523.25, 659.25, 783.99, 659.25, 587.33, 523.25].forEach((note, index) =>
-    playNote(note, start + index * 0.42),
-  );
-}
-const birthdayMusic = new Audio("assets/music/birthday-song.mp3");
-birthdayMusic.loop = true;
-birthdayMusic.volume = 0.6;
-
 document.querySelector("#music-toggle").addEventListener("click", async () => {
-  const bars = document.querySelector(".music-bars");
-  const label = document.querySelector(".music-label");
-  const button = document.querySelector("#music-toggle");
-
+  const bars = document.querySelector(".music-bars"),
+    label = document.querySelector(".music-label"),
+    button = document.querySelector("#music-toggle");
   if (musicOn) {
     birthdayMusic.pause();
     musicOn = false;
-
     bars.classList.remove("playing");
     label.textContent = "Play music";
     button.setAttribute("aria-label", "Play music");
-  } else {
+    return;
+  }
+  try {
     await birthdayMusic.play();
     musicOn = true;
-
     bars.classList.add("playing");
     label.textContent = "Music on";
     button.setAttribute("aria-label", "Pause music");
+  } catch (error) {
+    console.error("Music could not start:", error);
   }
 });
